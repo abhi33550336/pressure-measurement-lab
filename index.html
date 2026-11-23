@@ -1,0 +1,881 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pressure Measurement Laboratory 4.0</title>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101b29;color:#eaf2f8;font-family:Segoe UI,Arial,sans-serif;overflow:hidden}
+#app{display:flex;width:100vw;height:100vh}
+#viewport{position:relative;flex:1;min-width:0;overflow:hidden}
+#viewport canvas{display:block}
+#sidebar{width:370px;min-width:330px;background:#172638;border-left:1px solid #3b5269;padding:17px;overflow-y:auto;z-index:2}
+.header{border-bottom:1px solid #3a5065;padding-bottom:14px;margin-bottom:15px}
+.header h1{font-size:21px;color:#5de0d0;margin:0 0 5px}
+.header p{font-size:12px;color:#a9bdce;margin:0}
+.section{background:#203348;border:1px solid #3b5269;border-radius:10px;padding:13px;margin-bottom:13px}
+.section h3{font-size:13px;color:#69ded2;margin:0 0 12px;letter-spacing:.7px;text-transform:uppercase}
+label{display:block;font-size:12px;color:#c6d5e2;margin:9px 0 6px}
+input[type=range]{width:100%;accent-color:#18b8aa}
+select,input[type=number]{width:100%;padding:9px;background:#142638;color:white;border:1px solid #536b80;border-radius:6px;outline:none}
+input:focus,select:focus{border-color:#22c9b8}
+.reading{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #3b5269;font-size:12px}
+.reading:last-child{border:0}
+.reading span{color:#b9cad8}
+.reading strong{text-align:right;color:white}
+.big{font-size:25px;color:#62e0d1;font-weight:700;margin:4px 0}
+.formula{background:#142638;color:#f7d57d;text-align:center;padding:10px;border-radius:7px;margin:10px 0;font-size:13px;font-weight:600}
+button{border:0;border-radius:7px;padding:10px;color:white;background:#087f8c;font-weight:600;cursor:pointer}
+button:hover{background:#0ca99c}
+.buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.secondary{background:#465d72}
+#status{font-size:11px;color:#71e1c7;margin-top:10px;line-height:1.5}
+.small{font-size:11px;line-height:1.6;color:#bdcbd7}
+.hidden{display:none!important}
+.inputRow{display:grid;grid-template-columns:1fr 100px;gap:9px;align-items:center}
+.unit{font-size:11px;color:#9fb6c8;margin-top:4px}
+.subheading{color:#80dcd4;font-size:11px;font-weight:700;margin-top:12px;letter-spacing:.4px}
+#topbar{position:absolute;top:13px;left:13px;right:13px;display:flex;justify-content:space-between;pointer-events:none;gap:8px;flex-wrap:wrap}
+.pill{background:#102437e8;border:1px solid #49647b;padding:9px 12px;border-radius:8px;font-size:11px}
+#help{position:absolute;bottom:13px;left:13px;background:#102437e8;padding:9px 12px;border-radius:8px;font-size:11px;color:#c6d9e5;pointer-events:none}
+.actionButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.densityRow{display:grid;grid-template-columns:1fr 105px;gap:8px;align-items:center}
+.densityRow label{margin:8px 0}
+@media(max-width:850px){
+ body{overflow:auto}
+ #app{flex-direction:column;height:100vh}
+ #viewport{min-height:45vh;flex:none}
+ #sidebar{width:100%;height:55vh;min-width:0;border-left:0;border-top:1px solid #3b5269}
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+<div id="viewport">
+ <div id="topbar">
+  <div class="pill">CGU | MECHANICAL ENGINEERING</div>
+  <div class="pill">PRESSURE LAB 4.0</div>
+ </div>
+ <div id="help">Drag: Rotate | Scroll: Zoom | Right-drag: Pan</div>
+</div>
+
+<aside id="sidebar">
+ <div class="header">
+  <h1>Pressure Measurement Lab</h1>
+  <p>3D Bourdon Gauge + U-Tube Manometer</p>
+  <p style="margin-top:7px">Interactive Mechanical Engineering Experiment</p>
+ </div>
+
+ <div class="section">
+  <h3>Pressure Source & Control</h3>
+  <label>Applied gauge pressure</label>
+  <div class="big"><span id="pressureValue">0.00</span> kPa</div>
+  <input id="pressureSlider" type="range" min="0" max="20" step="0.1" value="0">
+
+  <div class="inputRow">
+   <div>
+    <label>Precise pressure input</label>
+    <input id="pressureInput" type="number" min="0" max="20" step="0.01" value="0.00">
+   </div>
+   <div>
+    <label>Unit</label>
+    <select id="pressureUnit">
+     <option value="kPa">kPa</option>
+     <option value="bar">bar</option>
+     <option value="Pa">Pa</option>
+    </select>
+   </div>
+  </div>
+  <div class="unit">Enter a value, select its unit, then press Apply Pressure or Enter.</div>
+
+  <div class="actionButtons">
+   <button id="applyPressureButton">Apply Pressure</button>
+   <button id="releasePressureButton" class="secondary">Release Pressure</button>
+  </div>
+
+  <div class="reading"><span>Pressure range</span><strong>0–20 kPa</strong></div>
+  <div class="reading"><span>Gauge pressure</span><strong id="pressureBar">0.0000 bar</strong></div>
+  <div class="reading"><span>Applied pressure</span><strong id="pressurePa">0 Pa</strong></div>
+ </div>
+
+ <div class="section">
+  <h3>3D Bourdon Pressure Gauge</h3>
+  <div class="reading"><span>Gauge reading</span><strong id="bourdonReading">0.00 kPa</strong></div>
+  <div class="reading"><span>Tube type</span><strong>C-Type</strong></div>
+  <div class="reading"><span>Tube material</span><strong>Metal alloy (visual)</strong></div>
+  <div class="reading"><span>Free-end movement</span><strong id="tipMovement">0.0 mm</strong></div>
+  <div class="reading"><span>Pointer movement</span><strong id="pointerMovement">0°</strong></div>
+  <p class="small">Internal pressure changes the cross-section and curvature of the flattened Bourdon tube. Its free end moves, transmitting motion through a connecting link, sector gear and pinion to the pointer.</p>
+  <label>Gauge inspection</label>
+  <select id="gaugeView">
+   <option value="normal">Normal laboratory view</option>
+   <option value="cutaway">Cutaway mechanism view</option>
+   <option value="detail">Bourdon tube detail view</option>
+  </select>
+ </div>
+
+ <div class="section">
+  <h3>Manometer Configuration</h3>
+  <label>Working mode</label>
+  <select id="modeSelect">
+   <option value="water">Water only</option>
+   <option value="mercury">Mercury only</option>
+   <option value="compound" selected>Water + Mercury (compound)</option>
+  </select>
+
+  <div id="singleControls" class="hidden">
+   <label>Manometric liquid</label>
+   <select id="singleFluid">
+    <option value="water">Water</option>
+    <option value="mercury">Mercury</option>
+   </select>
+  </div>
+
+  <div id="compoundControls">
+   <div class="reading"><span>Upper liquid</span><strong>Water</strong></div>
+   <div class="reading"><span>Heavy liquid</span><strong>Mercury</strong></div>
+   <label>Water column height above interface (hw)</label>
+   <input id="waterHeight" type="range" min=".10" max=".60" step=".01" value=".25">
+   <div class="reading"><span>Water height (hw)</span><strong id="waterHeightValue">0.25 m</strong></div>
+  </div>
+ </div>
+
+ <div class="section">
+  <h3>Manometer Measurements</h3>
+  <div class="densityRow">
+   <label for="waterDensity">Water density (kg/m³)</label>
+   <input id="waterDensity" type="number" min="1" max="20000" step="1" value="1000">
+  </div>
+  <div class="densityRow">
+   <label for="mercuryDensity">Mercury density (kg/m³)</label>
+   <input id="mercuryDensity" type="number" min="1" max="20000" step="1" value="13546">
+  </div>
+  <div class="reading"><span>Water height (hw)</span><strong id="waterResult">0.2500 m</strong></div>
+  <div class="reading"><span>Mercury height (hHg)</span><strong id="mercuryResult">0.0000 m</strong></div>
+  <div class="reading"><span>Calculated pressure</span><strong id="manometerReading">0.00 kPa</strong></div>
+  <div class="formula" id="formula">Pg = ρHg g hHg − ρw g hw</div>
+  <div class="reading"><span>Gravity</span><strong>9.81 m/s²</strong></div>
+  <div class="reading"><span>Pressure difference</span><strong id="differenceReading">0.00 kPa</strong></div>
+  <p class="small">For compound mode, mercury height is calculated from the applied pressure and selected water-column height. The density values can be adjusted to study their effect.</p>
+ </div>
+
+ <div class="section">
+  <h3>Pressure Conversion</h3>
+  <div class="reading"><span>Gauge pressure</span><strong id="gaugeKpa">0.00 kPa</strong></div>
+  <div class="reading"><span>Atmospheric pressure</span><strong>101.325 kPa</strong></div>
+  <div class="reading"><span>Absolute pressure</span><strong id="absoluteReading">101.325 kPa</strong></div>
+  <div class="formula">Pabs = Patm + Pg</div>
+ </div>
+
+ <div class="section">
+  <h3>Experiment Controls</h3>
+  <div class="buttons">
+   <button id="resetButton">Reset</button>
+   <button id="pauseButton" class="secondary">Pause</button>
+  </div>
+  <div id="status">System ready.</div>
+ </div>
+
+ <div class="section">
+  <h3>How to use</h3>
+  <p class="small">
+   1. Set the applied pressure using the slider or precise input.<br>
+   2. Press Apply Pressure or Enter to update the simulation.<br>
+   3. Observe the Bourdon tube and pointer.<br>
+   4. Select water, mercury or compound mode.<br>
+   5. Adjust the liquid densities and water height.<br>
+   6. Observe the calculated mercury height and manometer pressure.
+  </p>
+  <p class="small">The 3D liquid levels are visually scaled for visibility. The Bourdon mechanism is an educational mechanical model, not a calibrated manufacturing simulation.</p>
+ </div>
+</aside>
+</div>
+
+<script type="module">
+import * as THREE from './libs/three.module.js';
+
+/* ==========================================
+   SCENE
+========================================== */
+
+const viewport=document.getElementById('viewport');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x152536);
+scene.fog=new THREE.Fog(0x152536,22,45);
+
+const camera=new THREE.PerspectiveCamera(45,viewport.clientWidth/viewport.clientHeight,.1,100);
+camera.position.set(8,6,11);
+
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setSize(viewport.clientWidth,viewport.clientHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.15;
+viewport.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xe5f3ff,0x26384b,2));
+const sun=new THREE.DirectionalLight(0xffffff,3);
+sun.position.set(6,10,8);
+sun.castShadow=true;
+scene.add(sun);
+const fill=new THREE.PointLight(0x37c9d0,35,22);
+fill.position.set(-5,5,3);
+scene.add(fill);
+const rimLight=new THREE.PointLight(0xffbd62,18,15);
+rimLight.position.set(1,5,-4);
+scene.add(rimLight);
+
+/* ==========================================
+   MATERIALS
+========================================== */
+
+const mat=(color,metalness=.2,roughness=.5,extra={})=>new THREE.MeshStandardMaterial({color,metalness,roughness,...extra});
+const steel=mat(0x849aa9,.85,.28);
+const dark=mat(0x293d50,.8,.35);
+const brass=mat(0xc49a43,.8,.25);
+const teal=mat(0x16b7a8,.35,.35);
+const rubber=mat(0x202a33,0,.85);
+const white=mat(0xf4f6f5,.1,.65);
+const blackMetal=mat(0x111c26,.85,.25);
+const waterMat=new THREE.MeshPhysicalMaterial({color:0x159be0,transparent:true,opacity:.82,roughness:.12,depthWrite:false});
+const mercuryMat=mat(0xc7d0d6,.92,.12);
+const glassMat=new THREE.MeshPhysicalMaterial({color:0xb9e9ef,transparent:true,opacity:.25,roughness:.05,depthWrite:false});
+const gaugeGlass=new THREE.MeshPhysicalMaterial({color:0xe6f8ff,transparent:true,opacity:.12,roughness:.04,metalness:0,depthWrite:false});
+
+/* ==========================================
+   HELPERS
+========================================== */
+
+function box(parent,x,y,z,sx,sy,sz,material){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),material);
+ m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;
+}
+function cylinder(parent,x,y,z,r,len,material,segments=32){
+ const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,segments),material);
+ m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;
+}
+function sphere(parent,x,y,z,r,material){
+ const m=new THREE.Mesh(new THREE.SphereGeometry(r,24,16),material);
+ m.position.set(x,y,z);m.castShadow=true;parent.add(m);return m;
+}
+function line(parent,points,color=0xffffff){
+ const g=new THREE.BufferGeometry().setFromPoints(points.map(p=>new THREE.Vector3(...p)));
+ const m=new THREE.Line(g,new THREE.LineBasicMaterial({color}));parent.add(m);return m;
+}
+function textSprite(text,color='#ffffff',scale=1){
+ const c=document.createElement('canvas');c.width=512;c.height=128;
+ const ctx=c.getContext('2d');ctx.font='bold 42px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(text,256,64);
+ const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+ s.scale.set(2.2*scale,.55*scale,1);return s;
+}
+function pipe(parent,a,b,r,material){
+ const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);
+ const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),24),material);
+ m.position.copy(A).add(B).multiplyScalar(.5);
+ m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());
+ m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;
+}
+function tube(parent,points,radius,material){
+ const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p)));
+ const m=new THREE.Mesh(new THREE.TubeGeometry(curve,100,radius,16,false),material);
+ m.castShadow=true;parent.add(m);return m;
+}
+
+/* ==========================================
+   FLOOR AND LABORATORY PLATFORM
+========================================== */
+
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(35,35),mat(0x243547,0,.8));
+floor.rotation.x=-Math.PI/2;floor.position.y=-.08;floor.receiveShadow=true;scene.add(floor);
+const grid=new THREE.GridHelper(30,30,0x577083,0x354b5e);
+grid.position.y=-.05;scene.add(grid);
+
+box(scene,0,.15,0,10,.3,5,dark);
+box(scene,0,.34,0,9.8,.08,4.8,steel);
+for(const x of [-4.1,4.1])for(const z of [-1.8,1.8])box(scene,x,-.4,z,.35,1.1,.35,dark);
+
+/* ==========================================
+   PRESSURE SOURCE - HAND PUMP
+========================================== */
+
+const source=new THREE.Group();source.position.set(-3.5,.42,0);scene.add(source);
+box(source,0,.03,0,1.5,.13,1.15,dark);
+box(source,0,.11,0,1.25,.08,.95,steel);
+cylinder(source,0,.65,0,.32,1.0,steel);
+cylinder(source,0,1.17,0,.35,.10,brass);
+cylinder(source,0,.20,0,.37,.12,dark);
+cylinder(source,0,1.22,0,.19,.12,blackMetal);
+const pistonRod=cylinder(source,0,1.58,0,.065,.75,steel);
+const pumpGrip=box(source,0,1.98,0,.85,.12,.20,rubber);
+sphere(source,-.44,1.98,0,.10,blackMetal);
+sphere(source,.44,1.98,0,.10,blackMetal);
+cylinder(source,.38,1.1,0,.105,.25,brass);
+pipe(source,[.38,1.1,0],[.55,1.1,0],.065,brass);
+const sourceText=textSprite('HAND PRESSURE PUMP','#71e5d6',.75);
+sourceText.position.set(0,2.35,0);source.add(sourceText);
+
+pipe(scene,[-3.12,1.52,0],[-2.3,1.52,0],.075,brass);
+pipe(scene,[-2.3,1.52,0],[-2.3,2.1,0],.075,brass);
+pipe(scene,[-2.3,2.1,0],[2.1,2.1,0],.075,brass);
+for(const x of [-2.3,-1.7,0,2.1]){
+ const collar=cylinder(scene,x,2.1,0,.12,.12,steel);collar.rotation.x=Math.PI/2;
+}
+
+/* ==========================================
+   PRESSURE VALVE
+========================================== */
+
+const valve=new THREE.Group();valve.position.set(-1.7,2.1,0);scene.add(valve);
+cylinder(valve,0,0,0,.17,.25,teal);
+cylinder(valve,0,.18,0,.09,.18,brass);
+const valveStem=cylinder(valve,0,.38,0,.045,.28,steel);
+const valveHandle=new THREE.Group();valveHandle.position.set(0,.53,0);valve.add(valveHandle);
+pipe(valveHandle,[-.36,0,0],[.36,0,0],.045,brass);
+sphere(valveHandle,-.36,0,0,.075,blackMetal);
+sphere(valveHandle,.36,0,0,.075,blackMetal);
+
+pipe(scene,[-1.7,2.1,0],[-1.7,3.1,0],.075,brass);
+pipe(scene,[0,2.1,0],[0,3.1,0],.075,brass);
+pipe(scene,[2.1,2.1,0],[2.1,3.1,0],.075,brass);
+
+/* ==========================================
+   GAUGE MOUNTING STAND
+========================================== */
+
+const gaugeStand=new THREE.Group();gaugeStand.position.set(0,0,-.65);scene.add(gaugeStand);
+box(gaugeStand,0,1.65,0,.16,2.7,.18,steel);
+box(gaugeStand,0,.48,0,1.1,.13,.65,dark);
+box(gaugeStand,0,.56,0,.9,.06,.5,steel);
+box(gaugeStand,0,2.55,.06,.85,.13,.22,steel);
+box(gaugeStand,0,2.40,.06,.65,.10,.22,brass);
+for(const x of [-.35,.35])cylinder(gaugeStand,x,2.55,.19,.065,.08,brass,20);
+
+/* ==========================================
+   3D BOURDON GAUGE
+========================================== */
+
+const gauge=new THREE.Group();gauge.position.set(0,4,0);scene.add(gauge);
+const casing=cylinder(gauge,0,0,0,.98,.34,dark);casing.rotation.x=Math.PI/2;
+const outerRim=new THREE.Mesh(new THREE.TorusGeometry(.96,.09,20,96),steel);outerRim.position.z=.20;gauge.add(outerRim);
+const innerRim=new THREE.Mesh(new THREE.TorusGeometry(.855,.025,12,96),brass);innerRim.position.z=.235;gauge.add(innerRim);
+const dial=new THREE.Mesh(new THREE.CircleGeometry(.85,96),white);dial.position.z=.19;gauge.add(dial);
+const cover=new THREE.Mesh(new THREE.CircleGeometry(.88,96),gaugeGlass);cover.position.z=.38;gauge.add(cover);
+const glassRim=new THREE.Mesh(new THREE.TorusGeometry(.89,.018,12,96),mat(0xbad6e8,.7,.12));glassRim.position.z=.39;gauge.add(glassRim);
+
+const minAngle=-135,maxAngle=135;
+function dialPoint(a,r,z=.24){const rad=a*Math.PI/180;return[r*Math.sin(rad),r*Math.cos(rad),z];}
+for(let i=0;i<=40;i++){
+ const a=minAngle+i*(maxAngle-minAngle)/40,major=i%2===0;
+ line(gauge,[dialPoint(a,.75),dialPoint(a,major?.61:.68)],0x26394a);
+ if(major){
+  const value=(i/40*20).toFixed(0),p=dialPoint(a,.49,.25),s=textSprite(value,'#203747',.24);
+  s.position.set(p[0],p[1],p[2]);gauge.add(s);
+ }
+}
+const title=textSprite('PRESSURE kPa','#20384c',.43);title.position.set(0,-.51,.26);gauge.add(title);
+const gaugeBrand=textSprite('BOURDON GAUGE','#20384c',.30);gaugeBrand.position.set(0,.63,.26);gauge.add(gaugeBrand);
+
+const needlePivot=new THREE.Group();needlePivot.position.set(0,0,.30);gauge.add(needlePivot);
+const needle=new THREE.Mesh(new THREE.BoxGeometry(.035,.58,.025),mat(0xd74343,.4,.3));
+needle.position.set(0,.28,.02);needlePivot.add(needle);
+const needleTail=new THREE.Mesh(new THREE.BoxGeometry(.035,.17,.025),mat(0x293d50,.6,.25));
+needleTail.position.set(0,-.09,.02);needlePivot.add(needleTail);
+const hub=new THREE.Mesh(new THREE.SphereGeometry(.09,24,24),brass);hub.position.z=.05;needlePivot.add(hub);
+needlePivot.rotation.z=THREE.MathUtils.degToRad(135);
+cylinder(scene,0,3.0,0,.14,.65,dark);
+cylinder(scene,0,2.66,0,.23,.12,brass);
+
+/* ==========================================
+   HOLLOW FLATTENED BOURDON TUBE
+========================================== */
+
+function createBourdonGeometry(){
+ const segments=100,radial=32,vertices=[],indices=[],centerPoints=[];
+ const outerRX=.145,outerRZ=.085,innerRX=.105,innerRZ=.047;
+ for(let i=0;i<=segments;i++){
+  const a=THREE.MathUtils.degToRad(-135+i*270/segments);
+  centerPoints.push(new THREE.Vector3(Math.cos(a)*.82,Math.sin(a)*.82,0));
+ }
+ const curve=new THREE.CatmullRomCurve3(centerPoints),frames=curve.computeFrenetFrames(segments,false);
+ function addSurface(rx,rz,reverse){
+  const start=vertices.length/3;
+  for(let i=0;i<=segments;i++){
+   const p=curve.getPointAt(i/segments),normal=frames.normals[i];
+   for(let j=0;j<=radial;j++){
+    const a=j/radial*Math.PI*2;
+    const v=p.clone().addScaledVector(normal,rx*Math.cos(a));v.z+=rz*Math.sin(a);
+    vertices.push(v.x,v.y,v.z);
+   }
+  }
+  for(let i=0;i<segments;i++)for(let j=0;j<radial;j++){
+   const a=start+i*(radial+1)+j,b=a+radial+1;
+   if(reverse)indices.push(a,b,a+1,b,b+1,a+1);
+   else indices.push(a,a+1,b,b,a+1,b+1);
+  }
+ }
+ addSurface(outerRX,outerRZ,false);addSurface(innerRX,innerRZ,true);
+ const geo=new THREE.BufferGeometry();
+ geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+ geo.setIndex(indices);geo.computeVertexNormals();return geo;
+}
+
+/* ==========================================
+   BOURDON CUTAWAY ASSEMBLY
+========================================== */
+
+const mechanism=new THREE.Group();mechanism.position.set(-4.0,2.25,1.5);scene.add(mechanism);
+box(mechanism,0,-.15,-.12,2.25,2.55,.13,dark);
+for(const x of [-.98,.98])box(mechanism,x,-.15,-.02,.09,2.35,.10,steel);
+box(mechanism,0,1.02,-.02,2.05,.09,.10,steel);
+box(mechanism,0,-1.32,-.02,2.05,.09,.10,steel);
+
+const bourdonBody=new THREE.Mesh(createBourdonGeometry(),brass);
+bourdonBody.castShadow=true;bourdonBody.receiveShadow=true;mechanism.add(bourdonBody);
+const innerHighlight=new THREE.Mesh(createBourdonGeometry(),mat(0x8c6b30,.8,.3));
+innerHighlight.scale.set(.985,.985,1.015);innerHighlight.position.z=.006;mechanism.add(innerHighlight);
+
+const inletGroup=new THREE.Group();inletGroup.position.set(-.58,-.58,0);mechanism.add(inletGroup);
+cylinder(inletGroup,0,0,0,.16,.36,steel);
+cylinder(inletGroup,0,-.23,0,.21,.13,brass);
+cylinder(inletGroup,0,-.34,0,.13,.15,dark);
+for(let i=0;i<4;i++){
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(.145,.012,8,32),steel);
+ ring.rotation.x=Math.PI/2;ring.position.y=-.12-i*.055;inletGroup.add(ring);
+}
+
+const tipPivot=new THREE.Group();tipPivot.position.set(-.58,.58,0);mechanism.add(tipPivot);
+const tipBall=new THREE.Mesh(new THREE.SphereGeometry(.11,24,20),teal);tipPivot.add(tipBall);
+cylinder(tipPivot,0,.12,0,.065,.24,steel);
+sphere(mechanism,-.35,-.9,.08,.09,brass);
+cylinder(mechanism,-.35,-.9,.02,.10,.18,steel);
+
+const linkPivot=new THREE.Group();mechanism.add(linkPivot);
+const link=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1,16),steel);linkPivot.add(link);
+const linkTop=sphere(linkPivot,0,.5,0,.055,brass);
+const linkBottom=sphere(linkPivot,0,-.5,0,.055,brass);
+
+const sector=new THREE.Group();sector.position.set(-.35,-.9,.04);mechanism.add(sector);
+const gearDisk=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.13,48),brass);
+gearDisk.rotation.x=Math.PI/2;sector.add(gearDisk);
+for(let i=0;i<16;i++){
+ const a=i*Math.PI*2/16,tooth=box(sector,Math.cos(a)*.36,Math.sin(a)*.36,0,.13,.12,.15,brass);
+ tooth.rotation.z=a;
+}
+const sectorHub=cylinder(sector,0,0,.10,.12,.12,steel);sectorHub.rotation.x=Math.PI/2;
+
+const pinion=new THREE.Group();pinion.position.set(.25,-1.15,.20);mechanism.add(pinion);
+const pinionDisk=cylinder(pinion,0,0,0,.18,.14,steel);pinionDisk.rotation.x=Math.PI/2;
+for(let i=0;i<12;i++){
+ const a=i*Math.PI*2/12,tooth=box(pinion,Math.cos(a)*.19,Math.sin(a)*.19,0,.085,.075,.14,steel);
+ tooth.rotation.z=a;
+}
+const pinionHub=cylinder(pinion,0,0,.12,.08,.12,brass);pinionHub.rotation.x=Math.PI/2;
+
+const mechLabel=textSprite('C-TYPE BOURDON TUBE','#ffe2a0',.48);mechLabel.position.set(0,-1.65,.10);mechanism.add(mechLabel);
+const gearLabel=textSprite('LINKAGE + GEAR TRAIN','#d7e6f1',.36);gearLabel.position.set(.25,-1.94,.10);mechanism.add(gearLabel);
+const tubeLabel=textSprite('HOLLOW FLATTENED TUBE','#f4d28a',.32);tubeLabel.position.set(-.35,.98,.10);mechanism.add(tubeLabel);
+
+const shield=new THREE.Mesh(new THREE.BoxGeometry(2.16,2.42,.035),new THREE.MeshPhysicalMaterial({
+ color:0x7ecde5,transparent:true,opacity:.09,roughness:.1,metalness:.15,side:THREE.DoubleSide,depthWrite:false
+}));
+shield.position.set(0,-.15,.35);mechanism.add(shield);
+for(const x of [-.98,.98])for(const y of [-1.24,.94]){
+ const bolt=cylinder(mechanism,x,y,.05,.065,.07,brass,20);bolt.rotation.x=Math.PI/2;
+}
+
+/* ==========================================
+   MANOMETER SUPPORT FRAME
+========================================== */
+
+const manometer=new THREE.Group();manometer.position.set(2.1,0,0);scene.add(manometer);
+box(manometer,0,.42,.02,2.25,.13,.65,dark);
+box(manometer,0,.50,.02,2.05,.06,.53,steel);
+box(manometer,0,2.10,-.18,.12,3.25,.14,steel);
+box(manometer,0,3.70,-.18,1.55,.10,.16,steel);
+box(manometer,0,.67,-.18,1.55,.10,.16,steel);
+for(const x of [-.72,.72])box(manometer,x,2.18,-.18,.08,2.95,.12,steel);
+for(const y of [1.05,2.05,3.05])box(manometer,0,y,-.12,1.20,.09,.16,brass);
+for(const x of [-.60,.60])for(const y of [.80,3.48])cylinder(manometer,x,y,.02,.06,.08,brass,20);
+
+/* ==========================================
+   GLASS U-TUBE
+========================================== */
+
+const uPoints=[[-.55,3.2,0],[-.55,1.1,0],[-.52,.82,0],[-.3,.62,0],[0,.58,0],[.3,.62,0],[.52,.82,0],[.55,1.1,0],[.55,3.2,0]];
+tube(manometer,uPoints,.115,glassMat);
+const leftRim=cylinder(manometer,-.55,3.18,0,.13,.08,steel);
+const rightRim=cylinder(manometer,.55,3.18,0,.13,.08,steel);
+leftRim.rotation.z=Math.PI/2;rightRim.rotation.z=Math.PI/2;
+
+for(let i=0;i<=12;i++){
+ const y=.8+i*.18;line(manometer,[[-1.02,y,.08],[-.88,y,.08]],0xe2edf4);
+}
+line(manometer,[[-1.02,.8,.08],[-1.02,3,.08]],0xe2edf4);
+for(let i=0;i<=5;i++){
+ const y=.8+i*.4,s=textSprite((i*.1).toFixed(1),'#d8e9f4',.17);
+ s.position.set(-1.20,y,.1);manometer.add(s);
+}
+const mLabel=textSprite('U-TUBE MANOMETER','#7fe9e3',.62);mLabel.position.set(0,3.95,0);manometer.add(mLabel);
+const lLabel=textSprite('PRESSURE SIDE','#ffffff',.34);lLabel.position.set(-.72,3.35,0);manometer.add(lLabel);
+const rLabel=textSprite('OPEN TO ATMOSPHERE','#ffffff',.32);rLabel.position.set(.85,3.35,0);manometer.add(rLabel);
+
+/* ==========================================
+   DYNAMIC FLUID MESHES
+========================================== */
+
+let fluidMeshes=[],surfaces=[],heightMarkers=[];
+function clearFluids(){
+ for(const m of fluidMeshes){manometer.remove(m);m.geometry.dispose();}
+ fluidMeshes=[];
+}
+function clearSurfaces(){
+ for(const s of surfaces){manometer.remove(s);s.geometry.dispose();}
+ surfaces=[];
+}
+function clearMarkers(){
+ for(const m of heightMarkers){manometer.remove(m);if(m.geometry)m.geometry.dispose();}
+ heightMarkers=[];
+}
+function addFluid(points,material,radius=.078){
+ const m=tube(manometer,points,radius,material);fluidMeshes.push(m);return m;
+}
+function addSurface(x,y,material){
+ const s=sphere(manometer,x,y,.02,.105,material);surfaces.push(s);return s;
+}
+function addHeightMarker(x,y1,y2,color){
+ const marker=line(manometer,[[x,y1,.16],[x,y2,.16]],color);heightMarkers.push(marker);
+ const cap1=line(manometer,[[x-.09,y1,.16],[x+.09,y1,.16]],color);
+ const cap2=line(manometer,[[x-.09,y2,.16],[x+.09,y2,.16]],color);
+ heightMarkers.push(cap1,cap2);
+}
+
+/* ==========================================
+   FLUID CALCULATIONS AND VISUAL LEVELS
+========================================== */
+
+function updateFluidGeometry(PkPa,mode,rho,hw,rhoW,rhoHg){
+ clearFluids();clearSurfaces();clearMarkers();
+
+ const P=PkPa*1000,g=9.81,scale=2.0,bottomY=.58;
+ const leftX=-.55,rightX=.55;
+
+ if(mode==='compound'){
+  const hHg=(P+rhoW*g*hw)/(rhoHg*g);
+  const interfaceY=1.05;
+  const waterTop=interfaceY+Math.min(hw*scale,1.15);
+  const mercuryTop=interfaceY+Math.min(hHg*scale,1.15);
+
+  addFluid([[leftX,waterTop,0],[leftX,interfaceY+.12,0],[leftX,interfaceY,0]],waterMat);
+  addFluid([[leftX,interfaceY,0],[leftX,.82,0],[-.42,bottomY+.14,0],[0,bottomY,0],[.42,bottomY+.14,0],[rightX,.82,0],[rightX,mercuryTop,0]],mercuryMat);
+  addSurface(leftX,waterTop,waterMat);
+  addSurface(leftX,interfaceY,mercuryMat);
+  addSurface(rightX,mercuryTop,mercuryMat);
+  addHeightMarker(-.90,interfaceY,waterTop,0x36bfff);
+  addHeightMarker(.90,interfaceY,mercuryTop,0xe5d9a8);
+
+  return{height:hHg,waterHeight:hw,pressure:rhoHg*g*hHg-rhoW*g*hw};
+ }
+
+ const h=P/(rho*g);
+ const visualDiff=Math.min(h*scale,1.4);
+ const centerLevel=1.65;
+ const leftLevel=centerLevel-visualDiff/2;
+ const rightLevel=centerLevel+visualDiff/2;
+ const fluidMaterial=mode==='water'?waterMat:mercuryMat;
+
+ addFluid([[leftX,leftLevel,0],[leftX,.82,0],[-.42,bottomY+.14,0],[0,bottomY,0],[.42,bottomY+.14,0],[rightX,.82,0],[rightX,rightLevel,0]],fluidMaterial);
+ addSurface(leftX,leftLevel,fluidMaterial);
+ addSurface(rightX,rightLevel,fluidMaterial);
+ addHeightMarker(.90,leftLevel,rightLevel,0xe5d9a8);
+
+ return{height:h,waterHeight:mode==='water'?h:0,pressure:rho*g*h};
+}
+
+/* ==========================================
+   UI AND EXPERIMENT LOGIC
+========================================== */
+
+const $=id=>document.getElementById(id);
+const slider=$('pressureSlider');
+const pressureInput=$('pressureInput');
+const pressureUnit=$('pressureUnit');
+const modeSelect=$('modeSelect');
+const singleFluid=$('singleFluid');
+const waterHeightSlider=$('waterHeight');
+
+let pressure=0,paused=false;
+let targetNeedle=THREE.MathUtils.degToRad(135);
+let currentFluidResult={height:0,pressure:0};
+let inputDirty=false;
+
+function clampPressure(value){return THREE.MathUtils.clamp(value,0,20);}
+
+function getUnitFactor(unit){
+ if(unit==='bar')return 100;
+ if(unit==='Pa')return .001;
+ return 1;
+}
+function pressureInSelectedUnit(kpa){
+ return kpa/getUnitFactor(pressureUnit.value);
+}
+function updatePressureInputDisplay(){
+ pressureInput.value=pressureInSelectedUnit(pressure).toFixed(2);
+ inputDirty=false;
+}
+function updatePressureFromInput(){
+ const raw=pressureInput.value.trim();
+ if(raw===''||!Number.isFinite(Number(raw))){
+  $('status').textContent='Enter a valid numerical pressure value.';
+  pressureInput.focus();return false;
+ }
+ const typed=Number(raw);
+ if(typed<0){
+  $('status').textContent='Pressure cannot be negative. Enter a value from zero to the maximum range.';
+  pressureInput.focus();return false;
+ }
+ const converted=typed*getUnitFactor(pressureUnit.value);
+ if(converted>20){
+  $('status').textContent='The maximum applied pressure is 20 kPa (0.20 bar or 20000 Pa).';
+  pressureInput.focus();return false;
+ }
+ pressure=clampPressure(converted);
+ slider.value=pressure;
+ updateExperiment();
+ $('status').textContent='Precise pressure applied: '+pressure.toFixed(2)+' kPa.';
+ return true;
+}
+function readDensity(id,fallback){
+ const value=Number($(id).value);
+ if(!Number.isFinite(value)||value<=0||value>20000){
+  $(id).value=fallback;
+  return fallback;
+ }
+ return value;
+}
+
+function updateExperiment(){
+ pressure=clampPressure(Number(slider.value));
+ const mode=modeSelect.value;
+ const rhoW=readDensity('waterDensity',1000);
+ const rhoHg=readDensity('mercuryDensity',13546);
+ const hw=Number(waterHeightSlider.value);
+
+ if(!inputDirty)updatePressureInputDisplay();
+
+ $('pressureValue').textContent=pressure.toFixed(2);
+ $('pressureBar').textContent=(pressure/100).toFixed(4)+' bar';
+ $('pressurePa').textContent=(pressure*1000).toFixed(0)+' Pa';
+ $('bourdonReading').textContent=pressure.toFixed(2)+' kPa';
+ $('gaugeKpa').textContent=pressure.toFixed(2)+' kPa';
+ $('absoluteReading').textContent=(101.325+pressure).toFixed(3)+' kPa';
+ $('waterHeightValue').textContent=hw.toFixed(2)+' m';
+
+ $('singleControls').classList.toggle('hidden',mode==='compound');
+ $('compoundControls').classList.toggle('hidden',mode!=='compound');
+
+ const singleRho=singleFluid.value==='water'?rhoW:rhoHg;
+ currentFluidResult=updateFluidGeometry(pressure,mode,singleRho,hw,rhoW,rhoHg);
+ const calculated=currentFluidResult.pressure/1000;
+
+ if(mode==='compound'){
+  $('waterResult').textContent=hw.toFixed(4)+' m';
+  $('mercuryResult').textContent=currentFluidResult.height.toFixed(4)+' m';
+  $('formula').textContent='Pg = ρHg g hHg − ρw g hw';
+ }else{
+  $('waterResult').textContent=mode==='water'?currentFluidResult.height.toFixed(4)+' m':'—';
+  $('mercuryResult').textContent=mode==='mercury'?currentFluidResult.height.toFixed(4)+' m':'—';
+  $('formula').textContent='ΔP = ρ g h';
+ }
+
+ $('manometerReading').textContent=calculated.toFixed(3)+' kPa';
+ $('differenceReading').textContent=(calculated-pressure).toFixed(3)+' kPa';
+
+ const fraction=pressure/20;
+ const degrees=minAngle+fraction*(maxAngle-minAngle);
+ targetNeedle=THREE.MathUtils.degToRad(-degrees);
+ $('pointerMovement').textContent=(fraction*270).toFixed(1)+'°';
+
+ const movement=fraction*.20;
+ tipPivot.position.y=.58+movement;
+ $('tipMovement').textContent=(movement*1000).toFixed(1)+' mm';
+
+ const start=new THREE.Vector3(-.58,.58+movement,0);
+ const end=new THREE.Vector3(-.35,-.9,0);
+ const mid=start.clone().add(end).multiplyScalar(.5);
+ const direction=end.clone().sub(start);
+ linkPivot.position.copy(mid);
+ link.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.clone().normalize());
+ link.scale.y=direction.length();
+ linkTop.position.set(0,direction.length()/2,0);
+ linkBottom.position.set(0,-direction.length()/2,0);
+
+ sector.rotation.z=-fraction*.7;
+ pinion.rotation.z=fraction*1.4;
+ valveHandle.rotation.y=fraction*Math.PI;
+ pistonRod.position.y=1.58+fraction*.13;
+ pumpGrip.position.y=1.98+fraction*.13;
+
+ if(pressure===0)$('status').textContent='System at atmospheric reference.';
+ else $('status').textContent='Pressure applied. Instruments responding.';
+}
+
+/* ==========================================
+   EVENT LISTENERS
+========================================== */
+
+slider.addEventListener('input',()=>{
+ inputDirty=false;
+ updateExperiment();
+ $('status').textContent='Pressure adjusted using slider.';
+});
+
+pressureInput.addEventListener('input',()=>{
+ inputDirty=true;
+ $('status').textContent='Pressure value entered. Press Enter or Apply Pressure to confirm.';
+});
+pressureInput.addEventListener('keydown',e=>{
+ if(e.key==='Enter'){
+  e.preventDefault();
+  if(updatePressureFromInput())pressureInput.blur();
+ }
+});
+pressureInput.addEventListener('change',()=>{
+ if(pressureInput.value.trim()!=='')inputDirty=true;
+});
+
+$('applyPressureButton').addEventListener('click',()=>{
+ updatePressureFromInput();
+});
+
+$('releasePressureButton').addEventListener('click',()=>{
+ pressure=0;
+ slider.value=0;
+ updateExperiment();
+ $('status').textContent='Pressure released. System returned to zero gauge pressure.';
+});
+
+pressureUnit.addEventListener('change',()=>{
+ /* Keep the currently applied physical pressure when changing units. */
+ updatePressureInputDisplay();
+ $('status').textContent='Input unit changed. Current applied pressure is unchanged.';
+});
+
+modeSelect.addEventListener('change',updateExperiment);
+singleFluid.addEventListener('change',updateExperiment);
+waterHeightSlider.addEventListener('input',updateExperiment);
+$('waterDensity').addEventListener('change',updateExperiment);
+$('mercuryDensity').addEventListener('change',updateExperiment);
+
+/* Reset */
+
+$('resetButton').addEventListener('click',()=>{
+ slider.value=0;
+ pressure=0;
+ pressureUnit.value='kPa';
+ pressureInput.value='0.00';
+ inputDirty=false;
+ modeSelect.value='compound';
+ singleFluid.value='water';
+ waterHeightSlider.value='.25';
+ $('waterDensity').value='1000';
+ $('mercuryDensity').value='13546';
+ updateExperiment();
+ $('status').textContent='Experiment reset.';
+});
+
+/* Pause */
+
+$('pauseButton').addEventListener('click',()=>{
+ paused=!paused;
+ $('pauseButton').textContent=paused?'Resume':'Pause';
+ $('status').textContent=paused?'Animation paused.':'Simulation resumed.';
+});
+
+/* ==========================================
+   CAMERA CONTROLS
+========================================== */
+
+let dragging=false,rightDragging=false,px=0,py=0;
+let theta=Math.atan2(camera.position.x,camera.position.z);
+let phi=Math.acos(camera.position.y/camera.position.length());
+let radius=camera.position.length();
+const target=new THREE.Vector3(0,2,0);
+
+$('gaugeView').addEventListener('change',e=>{
+ const view=e.target.value;
+ if(view==='normal'){
+  target.set(0,2.5,0);radius=13;theta=.65;phi=1.12;
+ }else if(view==='cutaway'){
+  target.set(-4,2.2,1.5);radius=6;theta=.15;phi=1.45;
+ }else{
+  target.set(-4,2.25,1.5);radius=4.5;theta=.05;phi=1.55;
+ }
+ $('status').textContent='Inspection view changed.';
+});
+
+renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+renderer.domElement.addEventListener('pointerdown',e=>{
+ dragging=true;rightDragging=e.button===2;px=e.clientX;py=e.clientY;
+});
+window.addEventListener('pointerup',()=>{dragging=false;rightDragging=false;});
+window.addEventListener('pointermove',e=>{
+ if(!dragging)return;
+ const dx=e.clientX-px,dy=e.clientY-py;
+ px=e.clientX;py=e.clientY;
+ if(rightDragging){target.x-=dx*.008;target.y+=dy*.008;return;}
+ theta-=dx*.006;phi+=dy*.006;
+ phi=THREE.MathUtils.clamp(phi,.2,Math.PI-.2);
+});
+renderer.domElement.addEventListener('wheel',e=>{
+ radius=THREE.MathUtils.clamp(radius+e.deltaY*.008,4,24);
+},{passive:true});
+
+/* ==========================================
+   RESIZE
+========================================== */
+
+window.addEventListener('resize',()=>{
+ const w=viewport.clientWidth,h=viewport.clientHeight;
+ camera.aspect=w/h;camera.updateProjectionMatrix();
+ renderer.setSize(w,h);
+});
+
+/* ==========================================
+   ANIMATION LOOP
+========================================== */
+
+const clock=new THREE.Clock();
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=clock.getDelta();
+ if(!paused){
+  let difference=targetNeedle-needlePivot.rotation.z;
+  difference=Math.atan2(Math.sin(difference),Math.cos(difference));
+  needlePivot.rotation.z+=difference*Math.min(dt*5,1);
+ }
+ camera.position.set(
+  target.x+radius*Math.sin(phi)*Math.sin(theta),
+  target.y+radius*Math.cos(phi),
+  target.z+radius*Math.sin(phi)*Math.cos(theta)
+ );
+ camera.lookAt(target);
+ renderer.render(scene,camera);
+}
+
+/* ==========================================
+   START
+========================================== */
+
+updateExperiment();
+animate();
+</script>
+</body>
+</html>
