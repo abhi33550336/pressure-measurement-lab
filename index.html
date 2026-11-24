@@ -4,23 +4,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pressure Measurement Laboratory 4.0</title>
+<title>Pressure Measurement Laboratory 4.1</title>
 
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#101b29;color:#eaf2f8;font-family:Segoe UI,Arial,sans-serif;overflow:hidden}
 #app{display:flex;width:100vw;height:100vh}
-#viewport{position:relative;flex:1;min-width:0;overflow:hidden}
-#viewport canvas{display:block}
-#sidebar{width:370px;min-width:330px;background:#172638;border-left:1px solid #3b5269;padding:17px;overflow-y:auto;z-index:2}
+#viewport{position:relative;flex:1;min-width:0;min-height:0;overflow:hidden}
+#viewport canvas{display:block;width:100%;height:100%;touch-action:none}
+#sidebar{width:370px;min-width:330px;background:#172638;border-left:1px solid #3b5269;padding:17px;overflow-y:auto;overscroll-behavior:contain;z-index:2;touch-action:pan-y}
 .header{border-bottom:1px solid #3a5065;padding-bottom:14px;margin-bottom:15px}
 .header h1{font-size:21px;color:#5de0d0;margin:0 0 5px}
 .header p{font-size:12px;color:#a9bdce;margin:0}
 .section{background:#203348;border:1px solid #3b5269;border-radius:10px;padding:13px;margin-bottom:13px}
 .section h3{font-size:13px;color:#69ded2;margin:0 0 12px;letter-spacing:.7px;text-transform:uppercase}
 label{display:block;font-size:12px;color:#c6d5e2;margin:9px 0 6px}
-input[type=range]{width:100%;accent-color:#18b8aa}
-select,input[type=number]{width:100%;padding:9px;background:#142638;color:white;border:1px solid #536b80;border-radius:6px;outline:none}
+input[type=range]{width:100%;accent-color:#18b8aa;touch-action:pan-y}
+select,input[type=number]{width:100%;padding:9px;background:#142638;color:white;border:1px solid #536b80;border-radius:6px;outline:none;touch-action:manipulation;font-size:16px}
 input:focus,select:focus{border-color:#22c9b8}
 .reading{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #3b5269;font-size:12px}
 .reading:last-child{border:0}
@@ -28,7 +28,7 @@ input:focus,select:focus{border-color:#22c9b8}
 .reading strong{text-align:right;color:white}
 .big{font-size:25px;color:#62e0d1;font-weight:700;margin:4px 0}
 .formula{background:#142638;color:#f7d57d;text-align:center;padding:10px;border-radius:7px;margin:10px 0;font-size:13px;font-weight:600}
-button{border:0;border-radius:7px;padding:10px;color:white;background:#087f8c;font-weight:600;cursor:pointer}
+button{border:0;border-radius:7px;padding:10px;color:white;background:#087f8c;font-weight:600;cursor:pointer;touch-action:manipulation}
 button:hover{background:#0ca99c}
 .buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .secondary{background:#465d72}
@@ -44,11 +44,12 @@ button:hover{background:#0ca99c}
 .actionButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .densityRow{display:grid;grid-template-columns:1fr 105px;gap:8px;align-items:center}
 .densityRow label{margin:8px 0}
+
 @media(max-width:850px){
- body{overflow:auto}
- #app{flex-direction:column;height:100vh}
- #viewport{min-height:45vh;flex:none}
- #sidebar{width:100%;height:55vh;min-width:0;border-left:0;border-top:1px solid #3b5269}
+ body{overflow:hidden}
+ #app{flex-direction:column;height:100dvh;height:100vh}
+ #viewport{height:45vh;min-height:45vh;flex:none}
+ #sidebar{width:100%;height:55vh;min-width:0;min-height:0;border-left:0;border-top:1px solid #3b5269;padding:13px}
 }
 </style>
 </head>
@@ -220,6 +221,9 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.15;
 viewport.appendChild(renderer.domElement);
 
+/* Mobile canvas gesture isolation */
+renderer.domElement.style.touchAction='none';
+
 scene.add(new THREE.HemisphereLight(0xe5f3ff,0x26384b,2));
 const sun=new THREE.DirectionalLight(0xffffff,3);
 sun.position.set(6,10,8);
@@ -341,6 +345,10 @@ const valveHandle=new THREE.Group();valveHandle.position.set(0,.53,0);valve.add(
 pipe(valveHandle,[-.36,0,0],[.36,0,0],.045,brass);
 sphere(valveHandle,-.36,0,0,.075,blackMetal);
 sphere(valveHandle,.36,0,0,.075,blackMetal);
+
+/* ==========================================
+   PRESSURE PIPE
+========================================== */
 
 pipe(scene,[-1.7,2.1,0],[-1.7,3.1,0],.075,brass);
 pipe(scene,[0,2.1,0],[0,3.1,0],.075,brass);
@@ -763,7 +771,6 @@ $('releasePressureButton').addEventListener('click',()=>{
 });
 
 pressureUnit.addEventListener('change',()=>{
- /* Keep the currently applied physical pressure when changing units. */
  updatePressureInputDisplay();
  $('status').textContent='Input unit changed. Current applied pressure is unchanged.';
 });
@@ -800,72 +807,197 @@ $('pauseButton').addEventListener('click',()=>{
 });
 
 /* ==========================================
-   CAMERA CONTROLS
+   CAMERA CONTROLS - MOBILE SAFE
 ========================================== */
 
-let dragging=false,rightDragging=false,px=0,py=0;
+let dragging=false;
+let rightDragging=false;
+let activePointerId=null;
+let px=0,py=0;
+
 let theta=Math.atan2(camera.position.x,camera.position.z);
 let phi=Math.acos(camera.position.y/camera.position.length());
 let radius=camera.position.length();
-const target=new THREE.Vector3(0,2,0);
 
-$('gaugeView').addEventListener('change',e=>{
- const view=e.target.value;
- if(view==='normal'){
-  target.set(0,2.5,0);radius=13;theta=.65;phi=1.12;
- }else if(view==='cutaway'){
-  target.set(-4,2.2,1.5);radius=6;theta=.15;phi=1.45;
- }else{
-  target.set(-4,2.25,1.5);radius=4.5;theta=.05;phi=1.55;
+const target=new THREE.Vector3(0,2,0);
+const canvas=renderer.domElement;
+
+/* Always stop an unfinished camera gesture safely. */
+function stopCameraDrag(){
+ if(!dragging)return;
+
+ dragging=false;
+ rightDragging=false;
+
+ if(activePointerId!==null && canvas.hasPointerCapture(activePointerId)){
+  try{canvas.releasePointerCapture(activePointerId);}catch(e){}
  }
+
+ activePointerId=null;
+}
+
+/* Change inspection views */
+$('gaugeView').addEventListener('change',e=>{
+ stopCameraDrag();
+
+ const view=e.target.value;
+
+ if(view==='normal'){
+  target.set(0,2.5,0);
+  radius=13;
+  theta=.65;
+  phi=1.12;
+ }else if(view==='cutaway'){
+  target.set(-4,2.2,1.5);
+  radius=6;
+  theta=.15;
+  phi=1.45;
+ }else{
+  target.set(-4,2.25,1.5);
+  radius=4.5;
+  theta=.05;
+  phi=1.55;
+ }
+
  $('status').textContent='Inspection view changed.';
 });
 
-renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
-renderer.domElement.addEventListener('pointerdown',e=>{
- dragging=true;rightDragging=e.button===2;px=e.clientX;py=e.clientY;
+/* Context menu */
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+/*
+  IMPORTANT:
+  Camera interaction is now restricted to the 3D canvas.
+  Sidebar inputs, sliders, buttons and selects cannot start
+  or continue a camera drag.
+*/
+
+canvas.addEventListener('pointerdown',e=>{
+ if(!e.isPrimary)return;
+
+ if(e.pointerType==='mouse' && e.button!==0 && e.button!==2)return;
+ if(e.pointerType!=='mouse' && e.button!==0)return;
+
+ e.preventDefault();
+
+ dragging=true;
+ rightDragging=e.pointerType==='mouse' && e.button===2;
+ activePointerId=e.pointerId;
+
+ px=e.clientX;
+ py=e.clientY;
+
+ try{canvas.setPointerCapture(e.pointerId);}catch(error){}
 });
-window.addEventListener('pointerup',()=>{dragging=false;rightDragging=false;});
-window.addEventListener('pointermove',e=>{
- if(!dragging)return;
- const dx=e.clientX-px,dy=e.clientY-py;
- px=e.clientX;py=e.clientY;
- if(rightDragging){target.x-=dx*.008;target.y+=dy*.008;return;}
- theta-=dx*.006;phi+=dy*.006;
+
+/* Pointer movement only while captured by the 3D canvas */
+canvas.addEventListener('pointermove',e=>{
+ if(!dragging || e.pointerId!==activePointerId)return;
+
+ const dx=e.clientX-px;
+ const dy=e.clientY-py;
+
+ px=e.clientX;
+ py=e.clientY;
+
+ if(rightDragging){
+  target.x-=dx*.008;
+  target.y+=dy*.008;
+  target.y=THREE.MathUtils.clamp(target.y,-2,10);
+  return;
+ }
+
+ theta-=dx*.006;
+ phi+=dy*.006;
  phi=THREE.MathUtils.clamp(phi,.2,Math.PI-.2);
 });
-renderer.domElement.addEventListener('wheel',e=>{
+
+canvas.addEventListener('pointerup',e=>{
+ if(e.pointerId===activePointerId)stopCameraDrag();
+});
+
+canvas.addEventListener('pointercancel',e=>{
+ if(e.pointerId===activePointerId)stopCameraDrag();
+});
+
+canvas.addEventListener('lostpointercapture',()=>{
+ dragging=false;
+ rightDragging=false;
+ activePointerId=null;
+});
+
+/* Extra protection when the browser loses focus */
+window.addEventListener('blur',stopCameraDrag);
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden)stopCameraDrag();
+});
+
+/* Never allow a focused sidebar control to leave a camera drag active */
+$('sidebar').addEventListener('focusin',stopCameraDrag);
+$('sidebar').addEventListener('pointerdown',stopCameraDrag);
+
+/* Zoom */
+canvas.addEventListener('wheel',e=>{
  radius=THREE.MathUtils.clamp(radius+e.deltaY*.008,4,24);
 },{passive:true});
 
 /* ==========================================
-   RESIZE
+   RESIZE HANDLING
 ========================================== */
 
-window.addEventListener('resize',()=>{
- const w=viewport.clientWidth,h=viewport.clientHeight;
- camera.aspect=w/h;camera.updateProjectionMatrix();
+function resizeRenderer(){
+ const w=viewport.clientWidth;
+ const h=viewport.clientHeight;
+
+ if(w<=0 || h<=0)return;
+
+ camera.aspect=w/h;
+ camera.updateProjectionMatrix();
  renderer.setSize(w,h);
-});
+}
+
+/* Browser resize */
+window.addEventListener('resize',resizeRenderer);
+
+/* Mobile keyboard and viewport changes */
+if(window.visualViewport){
+ window.visualViewport.addEventListener('resize',()=>{
+  stopCameraDrag();
+  resizeRenderer();
+ });
+}
+
+/* Observe actual 3D viewport dimensions */
+if(typeof ResizeObserver!=='undefined'){
+ const resizeObserver=new ResizeObserver(()=>{
+  resizeRenderer();
+ });
+ resizeObserver.observe(viewport);
+}
 
 /* ==========================================
    ANIMATION LOOP
 ========================================== */
 
 const clock=new THREE.Clock();
+
 function animate(){
  requestAnimationFrame(animate);
+
  const dt=clock.getDelta();
+
  if(!paused){
   let difference=targetNeedle-needlePivot.rotation.z;
   difference=Math.atan2(Math.sin(difference),Math.cos(difference));
   needlePivot.rotation.z+=difference*Math.min(dt*5,1);
  }
+
  camera.position.set(
   target.x+radius*Math.sin(phi)*Math.sin(theta),
   target.y+radius*Math.cos(phi),
   target.z+radius*Math.sin(phi)*Math.cos(theta)
  );
+
  camera.lookAt(target);
  renderer.render(scene,camera);
 }
@@ -874,8 +1006,10 @@ function animate(){
    START
 ========================================== */
 
+resizeRenderer();
 updateExperiment();
 animate();
+
 </script>
 </body>
 </html>
